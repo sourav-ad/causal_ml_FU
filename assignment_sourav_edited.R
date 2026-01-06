@@ -3,9 +3,24 @@
 #Eduard
 
 #dependencies
-library(MatchIt)
-library(caret)
-library(glmnet)
+packages <- c(
+  "tidyverse",
+  "boot",
+  "MatchIt",
+  "caret",
+  "glmnet",
+  "glmnetUtils",
+  "tree"
+)
+
+installed <- rownames(installed.packages())
+
+for (p in packages) {
+  if (!p %in% installed) {
+    install.packages(p, dependencies = TRUE)
+  }
+  library(p, character.only = TRUE)
+}
 
 set.seed(123)
 
@@ -157,7 +172,7 @@ att_model <- lm(
 
 summary(att_model)
 
-# coef(att_model)["sportsclub"] matches att_psw
+# coef(att_model)["sportsclub"] matches att_psw exactly
 
 summary(data_clean$w_att)
 
@@ -165,11 +180,23 @@ summary(data_clean$w_att)
 
 # Variables such as obesity, smoking, and alcohol consumption are most likely affected
 # by having sports club membership and therefore would constitute post-treatment variables.
-# Conditioning on them may bias the estimated treatment effect by blocking causal
-# pathways or inducing collider bias. Demographic and background variables are
+# Demographic and background variables are
 # determined prior to treatment and can be considered unproblematic controls.
-# Propensity score methods rebalance observed covariates but do not correct bias
-# arising from conditioning on post-treatment variables.
+
+#Thus, the non problematic variables are as follows:
+
+controls_unproblematic <- c(
+  "female",
+  "age",
+  "siblings",
+  "born_germany",
+  "parent_nongermany",
+  "deutsch",
+  "urban",
+  "academictrack",
+  "newspaper",
+  "bula"
+)
 
 #Task 2
 
@@ -177,153 +204,168 @@ summary(data_clean$w_att)
 # from fitting a logistic regression model 
 # with control variables deemed unproblematic in 1d).
 
+
+# outcome is for classification
 data_clean$sportsclub_f <- factor(
   data_clean$sportsclub,
   levels = c(0, 1),
   labels = c("No", "Yes")
 )
 
-
-
-controls_clean <- c(
-  "female",
-  "siblings",
-  "born_germany",
-  "parent_nongermany",
-  "newspaper",
-  "academictrack",
-  "urban",
-  "age",
-  "deutsch",
-  "bula"
-)
-
+#logistic regression
 form_logit <- as.formula(
-  paste("sportsclub_f ~", paste(controls_clean, collapse = " + "))
+  paste("sportsclub_f ~", paste(controls_unproblematic, collapse = " + "))
 )
 
 #cross validation 
 
 ctrl_10 <- trainControl(
   method = "cv",
-  number = 10,
-  classProbs = TRUE,
-  summaryFunction = twoClassSummary
+  number = 10
 )
 
 logit_10 <- train(
   form_logit,
   data = data_clean,
   method = "glm",
-  family = binomial(link = "logit"),
-  trControl = ctrl_10,
-  metric = "Accuracy"
+  family = binomial,
+  trControl = ctrl_10
 )
 
 logit_10
 
+#Accuracy   Kappa    
+#0.6144949  0.1814244
+
 
 ctrl_5 <- trainControl(
   method = "cv",
-  number = 5,
-  classProbs = TRUE,
-  summaryFunction = twoClassSummary
+  number = 5
 )
 
 logit_5 <- train(
   form_logit,
   data = data_clean,
   method = "glm",
-  family = binomial(link = "logit"),
-  trControl = ctrl_5,
-  metric = "Accuracy"
+  family = binomial,
+  trControl = ctrl_5
 )
 
 logit_5
 
-cv_error_10 <- 1 - logit_10$results$Accuracy
-cv_error_5  <- 1 - logit_5$results$Accuracy
+# Accuracy   Kappa    
+# 0.6136358  0.1802731
 
-cv_error_10
-cv_error_5
+cv_10_error <- 1 - logit_10$results$Accuracy
+cv_5_error  <- 1 - logit_5$results$Accuracy
 
-
-#(b)
-
-
+cv_10_error # 0.3855051 ; lower bias, higher variance
+cv_5_error # 0.3863642 ; higher bias, lower variance
 
 
-X <- model.matrix(
-  as.formula(paste("sportsclub ~", paste(controls_clean, collapse = " + "))),
-  data_clean
-)[, -1]  # drop intercept
+#(b) Split the data into a 70% training and 30% test set. 
+#Estimate lasso, ridge, and elastic net models using 
+#cross-validation to choose penalty parameters. 
 
-y <- data_clean$sportsclub
 
-n <- nrow(X)
+# 70-30 train test split
+
+n <- nrow(data_clean)
 train_idx <- sample(seq_len(n), size = 0.7 * n)
 
-X_train <- X[train_idx, ]
-y_train <- y[train_idx]
+data_train <- data_clean[train_idx, ]
+data_test  <- data_clean[-train_idx, ]
 
-X_test  <- X[-train_idx, ]
-y_test  <- y[-train_idx]
+#sanity check
+nrow(data_train) / nrow(data_clean)  # 0.6999657
+nrow(data_test)  / nrow(data_clean)  # 0.3000343
 
+X_train <- model.matrix(
+  as.formula(paste("sportsclub ~", paste(controls_unproblematic, collapse = " + "))),
+  data_train
+)[, -1]   # drop intercept
+
+y_train <- data_train$sportsclub
+
+#Using 5-fold cv
+
+#lasso, alpha = 1
 cv_lasso <- cv.glmnet(
-  X_train, y_train,
+  X_train,
+  y_train,
   family = "binomial",
   alpha  = 1,
-  nfolds = 10
+  nfolds = 5
 )
 
+#the best lambda parameter
 lambda_lasso <- cv_lasso$lambda.min
+lambda_lasso # 0.001194322
 
-cv_ridge <- cv.glmnet(
-  X_train, y_train,
-  family = "binomial",
-  alpha  = 0,
-  nfolds = 10
-)
-
-lambda_ridge <- cv_ridge$lambda.min
-
-cv_elnet <- cv.glmnet(
-  X_train, y_train,
-  family = "binomial",
-  alpha  = 0.5,
-  nfolds = 10
-)
-
-lambda_elnet <- cv_elnet$lambda.min
-
-fit_lasso <- glmnet(
-  X_train, y_train,
+#final model with optimal lambda
+lasso_model <- glmnet(
+  X_train,
+  y_train,
   family = "binomial",
   alpha  = 1,
   lambda = lambda_lasso
 )
 
-fit_ridge <- glmnet(
-  X_train, y_train,
+#Ridge, alpha = 0
+#same X_train and y_train
+
+cv_ridge <- cv.glmnet(
+  X_train,
+  y_train,
+  family = "binomial",
+  alpha  = 0,
+  nfolds = 5
+)
+
+lambda_ridge <- cv_ridge$lambda.min
+lambda_ridge # 0.009464796
+
+#final model
+
+ridge_model <- glmnet(
+  X_train,
+  y_train,
   family = "binomial",
   alpha  = 0,
   lambda = lambda_ridge
 )
 
-fit_elnet <- glmnet(
-  X_train, y_train,
+#Elastic Net, alpha = 0.5
+#again same X_train and y_train
+
+cv_elastic <- cv.glmnet(
+  X_train,
+  y_train,
   family = "binomial",
   alpha  = 0.5,
-  lambda = lambda_elnet
+  nfolds = 5
 )
 
+lambda_elastic <- cv_elastic$lambda.min
+lambda_elastic # 0.001806921
+
+#final model with best lambda
+elastic_model <- glmnet(
+  X_train,
+  y_train,
+  family = "binomial",
+  alpha  = 0.5,
+  lambda = lambda_elastic
+)
 
 #From Eduard
 
 ## Task 3 #####
 
 X_full <- bind_cols(X, y)
+
 colnames(X_full)[11] <- "health1"
+
 X_full <- X_full %>%
   mutate(
     female = as.factor(female),
