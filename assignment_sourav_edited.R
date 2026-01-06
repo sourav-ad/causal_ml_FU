@@ -316,3 +316,33 @@ fit_elnet <- glmnet(
   alpha  = 0.5,
   lambda = lambda_elnet
 )
+
+
+#From Eduard
+
+## Task 3 #####
+
+X_full <- bind_cols(X, y)
+colnames(X_full)[11] <- "health1"
+X_full <- X_full %>%
+  mutate(
+    female = as.factor(female),
+    siblings = as.factor(siblings),
+    born_germany = as.factor(born_germany),
+    parent_nongermany = as.factor(parent_nongermany),
+    newspaper = as.factor(newspaper),
+    academictrack = as.factor(academictrack),
+    urban = as.factor(urban),
+    deutsch = as.factor(deutsch),
+    bula = as.character(bula),
+    health1 = as.factor(health1)
+  )
+
+classTree <- tree(formula = health1 ~ ., data = X_full, subset = train_idx, split = "gini")
+
+set.seed(123)
+classCv <- cv.tree(object = classTree, FUN = prune.misclass)
+treePrune <- prune.misclass(tree = classTree, best = 3)
+
+plot(treePrune)
+text(treePrune, pretty=0)
