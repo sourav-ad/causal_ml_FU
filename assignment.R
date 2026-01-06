@@ -3,9 +3,7 @@
 #Eduard
 
 #dependencies
-library(MatchIt)
-library(caret)
-library(glmnet)
+pacman::p_load(tidyverse, boot, MatchIt, caret, glmnet, glmnetUtils, tree)
 
 set.seed(123)
 
@@ -33,9 +31,8 @@ View(data_clean)
 #nrow(data) =  17468
 #ncol(data) = 16
 
-#Task 1
-
-#(a) Naive ATE estimator
+## Task 1 #####
+### (a) Naive ATE estimator ####
 
 #with treatment
 y_1 <- data_clean$health1[data_clean$sportsclub == 1]
@@ -56,7 +53,10 @@ ci <- c(
 
 ci # 0.1474207 0.1743239
 
-#(b) probit model
+# Answer: 
+# Naive ATE: 0.1608723; 95% CI: [0.1474207, 0.1743239]
+
+### (b) probit model #####
 
 controls <- c(
   "female",
@@ -94,8 +94,9 @@ summary(data_clean$pscore)
 range(data_clean$pscore[data_clean$sportsclub == 1])
 range(data_clean$pscore[data_clean$sportsclub == 0])
 
-# (c)
+### (c) ATT using using nearest-neighbor matching with replacement and propensity score weighting #####
 
+# Get matches
 m_nn <- matchit(
   sportsclub ~ female + siblings + born_germany + parent_nongermany +
     newspaper + academictrack + urban + age + deutsch + bula +
@@ -109,6 +110,7 @@ m_nn <- matchit(
 
 matched_data <- match.data(m_nn)
 
+# Calculate nearest-neighbor matching ATT
 att_nn <- with(
   matched_data,
   mean(health1[sportsclub == 1]) -
@@ -117,7 +119,7 @@ att_nn <- with(
 
 att_nn
 
-#propensity score weighting for the estimation of ATT
+# Propensity score weighting for the estimation of ATT
 
 data_clean$w_att <- ifelse(
   data_clean$sportsclub == 1,
@@ -151,17 +153,16 @@ summary(att_model)
 
 summary(data_clean$w_att)
 
-#(d)
+### (d) Porblematic Controls #####
 
 #Problematic controls are those that violate the identification logic 
 #of causal inference when conditioned on.
 
-#TO BE PROPERLY EDITED
 
-# Some control variables, such as obesity and smoking-related measures, 
+# Some control variables (obese, eversmoked, currentsmoking)
 # are likely affected by sports club membership and therefore constitute 
-# post-treatment variables. 
-# 
+# post-treatment variables.  
+#
 # Conditioning on them can bias the estimated treatment effect by 
 # blocking causal pathways or inducing collider bias. 
 # Other variables, such as academic track or regional fixed effects, 
@@ -173,9 +174,9 @@ summary(data_clean$w_att)
 # or poor covariate selection; 
 # they only address imbalance in pre-treatment confounders.
 
-#Task 2
+## Task 2 #####
 
-#(a)
+### (a) #####
 
 controls_clean <- c(
   "female",
@@ -244,7 +245,7 @@ cv_error_10
 cv_error_5
 
 
-#(b)
+### (b) #####
 
 X <- model.matrix(
   as.formula(paste("sportsclub ~", paste(controls_clean, collapse = " + "))),
@@ -289,23 +290,74 @@ cv_elnet <- cv.glmnet(
 
 lambda_elnet <- cv_elnet$lambda.min
 
-fit_lasso <- glmnet(
+
+fit_lasso_train <- glmnet(
   X_train, y_train,
   family = "binomial",
   alpha  = 1,
   lambda = lambda_lasso
 )
 
-fit_ridge <- glmnet(
+fit_ridge_train <- glmnet(
   X_train, y_train,
   family = "binomial",
   alpha  = 0,
   lambda = lambda_ridge
 )
 
-fit_elnet <- glmnet(
+fit_elnet_train <- glmnet(
   X_train, y_train,
   family = "binomial",
   alpha  = 0.5,
   lambda = lambda_elnet
 )
+
+### (c) #####
+
+fit_lasso_test <- glmnet(
+  X_test, y_test,
+  family = "binomial",
+  alpha  = 1,
+  lambda = lambda_lasso
+)
+
+lassoPred <- predict(fit_lasso_test, s = lambda_lasso, newx = X[-train_idx,])
+lassoMSE <- mean((lassoPred - y_test)^2)
+
+fit_ridge_test <- glmnet(
+  X_test, y_test,
+  family = "binomial",
+  alpha  = 0,
+  lambda = lambda_ridge
+)
+
+ridgePred <- predict(fit_ridge_test, s = lambda_ridge, newx = X[-train_idx,])
+ridgeMSE <- mean((ridgePred - y_test)^2)
+
+
+## Task 3 #####
+
+X_full <- bind_cols(X, y)
+colnames(X_full)[11] <- "health1"
+X_full <- X_full %>%
+  mutate(
+    female = as.factor(female),
+    siblings = as.factor(siblings),
+    born_germany = as.factor(born_germany),
+    parent_nongermany = as.factor(parent_nongermany),
+    newspaper = as.factor(newspaper),
+    academictrack = as.factor(academictrack),
+    urban = as.factor(urban),
+    deutsch = as.factor(deutsch),
+    bula = as.character(bula),
+    health1 = as.factor(health1)
+  )
+
+classTree <- tree(formula = health1 ~ ., data = X_full, subset = train_idx, split = "gini")
+
+set.seed(123)
+classCv <- cv.tree(object = classTree, FUN = prune.misclass)
+treePrune <- prune.misclass(tree = classTree, best = 3)
+
+plot(treePrune)
+text(treePrune, pretty=0)
