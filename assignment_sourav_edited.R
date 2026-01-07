@@ -47,12 +47,12 @@ data <- data[, vars]
 #preprocessing: remove all NA containing rows, if at least one entry is NA
 data_clean <- na.omit(data)
 #View(data_clean)
-#nrow(data) =  17468
-#ncol(data) = 16
+#nrow(data_clean) =  17468
+#ncol(data_clean) = 16
 
-#Task 1
+## Task 1 ####
 
-#(a) Naive ATE estimator
+### (a) Naive ATE estimator #####
 
 #with treatment
 y_1 <- data_clean$health1[data_clean$sportsclub == 1]
@@ -73,7 +73,7 @@ ci <- c(
 
 ci # 0.1474207 0.1743239
 
-#(b) Estimate the probability of treatment using all control variables (probit).
+### (b) Estimate the probability of treatment using all control variables (probit). ####
 
 controls <- c( #exclude outcome and treatment
   "female",
@@ -122,8 +122,8 @@ range(data_clean$pscore[data_clean$sportsclub == 1])
 range(data_clean$pscore[data_clean$sportsclub == 0])
 # 0.01483453 0.78342370
 
-# (c) Estimate the Average Treatment Effect on the Treated (ATT) using
-# nearest-neighbor matching with replacement.
+### (c) Estimate the Average Treatment Effect on the Treated (ATT) ####
+# using nearest-neighbor matching with replacement.
 
 #nearest-neighbor matching on propensity score (with replacement)
 #manual implementation
@@ -178,12 +178,15 @@ summary(att_model)
 
 summary(data_clean$w_att)
 
-#(d) 
+### (d) #### 
 
 # Variables such as obesity, smoking, and alcohol consumption are most likely affected
 # by having sports club membership and therefore would constitute post-treatment variables.
 # Demographic and background variables are
 # determined prior to treatment and can be considered unproblematic controls.
+# Propensity score methods do not solve the problem of post-treatment variables:
+# including such variables in the propensity score model would still bias the
+# estimated treatment effect, since the issue is causal ordering, not imbalance.
 
 #Thus, the non problematic variables are as follows:
 
@@ -200,9 +203,10 @@ controls_unproblematic <- c(
   "bula"
 )
 
-#Task 2
+## Task 2 ####
 
-#(a) Compute and compare the 10-fold and 5-fold cross-validation errors resulting 
+### (a) #####
+# Compute and compare the 10-fold and 5-fold cross-validation errors resulting 
 # from fitting a logistic regression model 
 # with control variables deemed unproblematic in 1d).
 
@@ -265,7 +269,8 @@ cv_10_error # 0.3855051 ; lower bias, higher variance
 cv_5_error # 0.3863642 ; higher bias, lower variance
 
 
-#(b) Split the data into a 70% training and 30% test set. 
+### (b) ####
+#Split the data into a 70% training and 30% test set. 
 #Estimate lasso, ridge, and elastic net models using 
 #cross-validation to choose penalty parameters. 
 
@@ -359,6 +364,33 @@ elastic_model <- glmnet(
   alpha  = 0.5,
   lambda = lambda_elastic
 )
+
+## ALTERNATIVE (EDI): Grid search for alpha and lambda:
+set.seed(123)
+cv_elastic <- cva.glmnet(
+  X_train,
+  y_train,
+  alpha = seq(0, 1, 1/100),
+  family = "binomial",
+  nfolds = 5
+)
+
+min_cvm <- sapply(cv_elastic$modlist, function(m) min(m$cvm))
+best_i <- which.min(min_cvm)
+
+alpha_elastic <- cv_elastic$alpha[best_i]
+lambda_elastic <- cv_elastic$modlist[[best_i]]$lambda.min
+
+alpha_elastic # 0 - basically Ridge
+lambda_elastic #  0.008623969 - close to Lambda ridge
+
+range(min_cvm)
+# 1.309946 1.309998
+# Very close range, suggests that all alphas perform very similarly
+
+# Sould we go with this? Or keep this but then justify fixing alpha at 0.5 just
+# to present a "different" model?
+
 
 ## Task 3 #####
 
