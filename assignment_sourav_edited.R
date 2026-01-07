@@ -116,15 +116,15 @@ summary(ps_probit)
 summary(data_clean$pscore)
 #estimated probability of treatment
 #OUTPUT
-#  Min.     1st Qu.   Median    Mean    3rd Qu.    Max. 
-# 0.01483  0.33720  0.43420   0.42977 0.52316   0.78342 
+#  Min.   1st Qu.  Median   Mean   3rd Qu.  Max. 
+# 0.01489 0.33682 0.43410 0.42976 0.52423 0.99996  
 
 #overlap check
 range(data_clean$pscore[data_clean$sportsclub == 1])
-# 0.03424576 0.72989473
+# 0.05269266 0.99995669
 
 range(data_clean$pscore[data_clean$sportsclub == 0])
-# 0.01483453 0.78342370
+# 0.01488587 0.78271074
 
 ### (c) Estimate the Average Treatment Effect on the Treated (ATT) ####
 # using nearest-neighbor matching with replacement.
@@ -145,7 +145,7 @@ y_matched  <- control$health1[matches]
 att_nn <- mean(y_treated - y_matched)
 
 att_nn
-# 0.1041972
+# 0.09766822
 
 # using propensity score weighting for the estimation of ATT
 
@@ -165,7 +165,7 @@ att_psw <- with(
     weighted.mean(health1[sportsclub == 0], w_att[sportsclub == 0])
 )
 
-att_psw # 0.1421826
+att_psw # 0.1422038
 
 
 # regression formulation
@@ -178,7 +178,7 @@ att_model <- lm(
 
 summary(att_model)
 
-# coef(att_model)["sportsclub"] matches att_psw exactly
+# coef(att_model)["sportsclub"] matches att_psw 
 
 summary(data_clean$w_att)
 
@@ -245,10 +245,10 @@ logit_10 <- train(
   trControl = ctrl_10
 )
 
-logit_10
+logit_10 #warning arises because Bundesland is included as a factor
 
 #  Accuracy   Kappa    
-# 0.7276163  -3.715547e-05
+# 0.7267574  -0.001367787
 
 
 #5 fold
@@ -268,14 +268,14 @@ logit_5 <- train(
 
 logit_5
 
-# Accuracy   Kappa    
-# 0.7276162  0.0003451815
+#  Accuracy   Kappa    
+# 0.7265859  -0.001326337
 
 cv_10_error <- 1 - logit_10$results$Accuracy
 cv_5_error  <- 1 - logit_5$results$Accuracy
 
-cv_10_error # 0.2723837 
-cv_5_error # 0.2723838
+cv_10_error # 0.2732426
+cv_5_error # 0.2734141
 
 
 ### (b) ####
@@ -316,7 +316,7 @@ cv_lasso <- cv.glmnet(
 
 #the best lambda parameter
 lambda_lasso <- cv_lasso$lambda.min
-lambda_lasso # 0.001394045
+lambda_lasso # 0.002400034
 
 #final model with optimal lambda
 lasso_model <- glmnet(
@@ -339,7 +339,7 @@ cv_ridge <- cv.glmnet(
 )
 
 lambda_ridge <- cv_ridge$lambda.min
-lambda_ridge # 0.008357083
+lambda_ridge # 0.02759455
 
 #final model
 
@@ -363,7 +363,7 @@ cv_elastic <- cv.glmnet(
 )
 
 lambda_elastic <- cv_elastic$lambda.min
-lambda_elastic # 0.002788091
+lambda_elastic # 0.005781698
 
 #final model with best lambda
 elastic_model <- glmnet(
@@ -438,19 +438,18 @@ err_lasso <- mean(yhat_lasso != y_test)
 err_ridge <- mean(yhat_ridge != y_test)
 err_elastic <- mean(yhat_elastic != y_test)
 
-err_lasso
-err_ridge
-err_elastic
-#should all the values be same?
+err_lasso # 0.2703683
+err_ridge # 0.2701774
+err_elastic # 0.2701774
 
 #sanity check
 cor(p_lasso, p_ridge)
 #            lambda.min
-# lambda.min  0.9991049
+# lambda.min  0.9948542
 
 cor(p_lasso, p_elastic)
 #            lambda.min
-# lambda.min  0.9999987
+# lambda.min  0.999769
 
 ### (d) Compare the coefficients across the three penalized models and ###
 #comment briefly on differences.
@@ -482,18 +481,32 @@ coef_compare <- Reduce(
 coef_compare
 
 #               term       LASSO         Ridge    ElasticNet
-# 1        (Intercept)  0.24415948  0.3210223077  0.28883836
-# 2      academictrack  0.12829207  0.1392702820  0.13249193
-# 3                age -0.05342270 -0.0557911239 -0.05464121
-# 4       born_germany  0.00000000 -0.0001455997  0.00000000
-# 5               bula -0.01579429 -0.0169943396 -0.01634788
-# 6            deutsch -0.57754970 -0.6181642944 -0.60367971
-# 7             female -0.07889158 -0.0929489715 -0.08472655
-# 8          newspaper  0.05954317  0.0725555902  0.06433384
-# 9  parent_nongermany -0.14778459 -0.1765001754 -0.16299617
-# 10          siblings  0.02569990  0.0475912375  0.03436136
-# 11        sportsclub  0.75966122  0.7384201071  0.75949237
-# 12             urban  0.00000000  0.0095297996  0.00000000
+# 1        (Intercept) -0.02476756  0.06975852 -0.073334643
+# 2      academictrack  0.12251166  0.13947400  0.118473906
+# 3                age -0.05094313 -0.05324894 -0.049251201
+# 4       born_germany  0.00000000 -0.02829949  0.000000000
+# 5             bula10  0.00000000  0.23522951  0.000000000
+# 6             bula11  0.40583749  0.86300986  0.270853684
+# 7             bula12  0.67888810  0.99787150  0.560588781
+# 8             bula13 -0.03142268 -0.07995142 -0.033048144
+# 9             bula14  0.36486661  0.54431984  0.289898642
+# 10            bula15  0.00000000  0.26041922  0.000000000
+# 11            bula16  0.00000000 -0.04730675  0.000000000
+# 12             bula2  0.31831882  0.53522407  0.222493877
+# 13             bula3  0.18618509  0.25273854  0.147920983
+# 14             bula4  0.12178935  0.09524748  0.112928748
+# 15             bula5 -0.19872112 -1.98972017  0.000000000
+# 16             bula6  0.00000000  0.46318182  0.000000000
+# 17             bula7  0.00000000 -0.21211868  0.000000000
+# 18             bula8 -1.16739870 -1.85535855 -0.938337556
+# 19             bula9  0.00000000 -0.55546188  0.000000000
+# 20           deutsch -0.52576701 -0.52044935 -0.488137839
+# 21            female -0.06854832 -0.08709702 -0.063118304
+# 22         newspaper  0.04857751  0.06825769  0.044589211
+# 23 parent_nongermany -0.12116368 -0.15050516 -0.101882986
+# 24          siblings  0.01292005  0.04492458  0.005381157
+# 25        sportsclub  0.75457460  0.67698086  0.740808071
+# 26             urban  0.00000000  0.02039875  0.000000000
 
 #Interpretation
 
