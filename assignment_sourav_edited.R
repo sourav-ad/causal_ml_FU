@@ -50,6 +50,9 @@ data_clean <- na.omit(data)
 #nrow(data_clean) =  17468
 #ncol(data_clean) = 16
 
+#read "bula" as factor
+data_clean$bula <- factor(data_clean$bula)
+
 ## Task 1 ####
 
 ### (a) Compute the naive estimator for the average treatment effect (ATE) 
