@@ -1,5 +1,5 @@
 ###CAUSAL MACHINE LEARNING ASSIGNMENT###
-#Sourav
+#Sourav Adhikari
 #Eduard-Alex Ciuhandu
 
 #dependencies
@@ -398,15 +398,6 @@ elastic_model <- glmnet(
 # range(min_cvm)
 # 1.136796 1.136904
 # Very close range, suggests that all alphas perform very similarly
-
-# Sould we go with this? Or keep this but then justify fixing alpha at 0.5 just
-# to present a "different" model?
-
-#Sourav: If I strictly interpret the question, they mention "penalty parameter"
-# lambda is the penalty parameter
-# alpha controls the mixing of L1 and L2
-# so may be this is a bit overkill? But we can keep it if you want. Now it 
-#looks pure lasso
 
 ### (c) #####
 #Evaluate all three models on the test set and compare their prediction errors. ###
