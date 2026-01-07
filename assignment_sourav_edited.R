@@ -52,7 +52,8 @@ data_clean <- na.omit(data)
 
 ## Task 1 ####
 
-### (a) Naive ATE estimator #####
+### (a) Compute the naive estimator for the average treatment effect (ATE) 
+#and the 95% confidence interval (you can assume a normal distribution). 
 
 #with treatment
 y_1 <- data_clean$health1[data_clean$sportsclub == 1]
@@ -403,7 +404,7 @@ elastic_model <- glmnet(
 # so may be this is a bit overkill? But we can keep it if you want. Now it 
 #looks pure lasso
 
-# (c) Evaluate all three models on the test set and compare their prediction errors.
+### (c) Evaluate all three models on the test set and compare their prediction errors. ###
 
 #test data
 
@@ -448,7 +449,7 @@ cor(p_lasso, p_elastic)
 #            lambda.min
 # lambda.min  0.9999987
 
-# (d) Compare the coefficients across the three penalized models and 
+### (d) Compare the coefficients across the three penalized models and ###
 #comment briefly on differences.
 
 #coefficients
