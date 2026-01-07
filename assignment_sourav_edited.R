@@ -10,7 +10,9 @@ packages <- c(
   "caret",
   "glmnet",
   "glmnetUtils",
-  "tree"
+  "tree",
+  "randomForest",
+  "gbm"
 )
 
 installed <- rownames(installed.packages())
@@ -358,33 +360,56 @@ elastic_model <- glmnet(
   lambda = lambda_elastic
 )
 
-#From Eduard
-
 ## Task 3 #####
 
-X_full <- bind_cols(X, y)
+### (a) #####
 
-colnames(X_full)[11] <- "health1"
+data_clean_tree <- data_clean[, c("health1", controls_unproblematic)]
+data_clean_tree$health1 <- as.factor(data_clean_tree$health1)
 
-X_full <- X_full %>%
-  mutate(
-    female = as.factor(female),
-    siblings = as.factor(siblings),
-    born_germany = as.factor(born_germany),
-    parent_nongermany = as.factor(parent_nongermany),
-    newspaper = as.factor(newspaper),
-    academictrack = as.factor(academictrack),
-    urban = as.factor(urban),
-    deutsch = as.factor(deutsch),
-    bula = as.character(bula),
-    health1 = as.factor(health1)
-  )
+classTree <- tree(formula = health1 ~ ., data = data_clean_tree, subset = train_idx, split = "gini")
 
-classTree <- tree(formula = health1 ~ ., data = X_full, subset = train_idx, split = "gini")
+summary(classTree)
+
+# The tree has 386 terminal nodes, average impurity after splitting of 1.167, 
+# and around 27% of the training observations are misclassified.
+
+### (b) #####
+
+p <- ncol(data_clean_tree) - 1
 
 set.seed(123)
-classCv <- cv.tree(object = classTree, FUN = prune.misclass)
-treePrune <- prune.misclass(tree = classTree, best = 3)
+bag <- randomForest(formula = health1 ~ ., ntree = 500, importance = TRUE, mtry = p, data = data_clean_tree, subset = train_idx)
 
-plot(treePrune)
-text(treePrune, pretty=0)
+bag_correct <- mean(predict(bag, newdata = data_clean_tree[-train_idx,]) == data_clean_tree[-train_idx, "health1"])
+bag_miss <- 1 - bag_correct 
+
+bag_miss # 0.2974623 - ~ 30%
+
+set.seed(123)
+rF <- randomForest(formula = health1 ~ ., ntree = 500, importance = TRUE, data = data_clean_tree, subset = train_idx)
+rF_correct <- mean(predict(rF, newdata = data_clean_tree[-train_idx,]) == data_clean_tree[-train_idx, "health1"])
+rF_miss <- 1 - rF_correct
+
+rF_miss # 0.2738027 - ~ 27%
+
+# The random forest has a lower misclassification rate than bagging (by about 2.5 pp)
+
+### (c) #####
+data_clean_tree$health1 <- as.numeric(as.character(data_clean_tree$health1))
+
+set.seed(123)
+boost <- gbm(formula = health1 ~ ., distribution = "bernoulli", 
+             data = data_clean_tree[train_idx,], n.trees = 1000)
+
+boost_pred_test <- ifelse(predict(boost, data_clean_tree[-train_idx,], n.trees = 1000, type = "response") > 0.5, 1, 0)
+boost_correct <- mean(boost_pred_test == data_clean_tree[-train_idx, "health1"])
+boost_miss <- 1 - boost_correct
+boost_miss #0.2699866
+
+### (d) #####
+
+summary(boost)
+
+# According to the relative influence measures from the boosted model, age and Bundesland are 
+# the most important predictors, followed by academic track, German citizenship, and gender.
