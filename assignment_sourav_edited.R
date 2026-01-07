@@ -1,6 +1,6 @@
 ###CAUSAL MACHINE LEARNING ASSIGNMENT###
 #Sourav
-#Eduard
+#Eduard-Alex Ciuhandu
 
 #dependencies
 packages <- c(
@@ -55,7 +55,8 @@ data_clean$bula <- factor(data_clean$bula)
 
 ## Task 1 ####
 
-### (a) Compute the naive estimator for the average treatment effect (ATE) 
+### (a) #####
+#Compute the naive estimator for the average treatment effect (ATE) 
 #and the 95% confidence interval (you can assume a normal distribution). 
 
 #with treatment
@@ -407,7 +408,8 @@ elastic_model <- glmnet(
 # so may be this is a bit overkill? But we can keep it if you want. Now it 
 #looks pure lasso
 
-### (c) Evaluate all three models on the test set and compare their prediction errors. ###
+### (c) #####
+#Evaluate all three models on the test set and compare their prediction errors. ###
 
 #test data
 
@@ -451,7 +453,8 @@ cor(p_lasso, p_elastic)
 #            lambda.min
 # lambda.min  0.999769
 
-### (d) Compare the coefficients across the three penalized models and ###
+### (d) #####
+#Compare the coefficients across the three penalized models and ###
 #comment briefly on differences.
 
 #coefficients
@@ -523,10 +526,8 @@ coef_compare
 
 ### (a) #####
 
-data_clean_tree <- data_clean[, c("health1", controls_unproblematic)]
+data_clean_tree <- data_clean[, c("health1", "sportsclub", controls_unproblematic)]
 
-#perhaps we should use:
-#data_clean_tree <- data_clean[, c("health1", "sportsclub", controls_unproblematic)]
 
 data_clean_tree$health1 <- as.factor(data_clean_tree$health1)
 
@@ -537,12 +538,11 @@ classTree <- tree(formula = health1 ~ .,
 
 summary(classTree)
 
-# The tree has 386 terminal nodes, average impurity after splitting of 1.167, 
-# and around 27% of the training observations are misclassified.
+# The tree has 544 terminal nodes, average impurity after splitting of 1.126, 
+# and around 25.96% of the training observations are misclassified.
 
 ### (b) #####
 
-#so this will change if treatment is included
 p <- ncol(data_clean_tree) - 1
 
 set.seed(123)
@@ -557,7 +557,7 @@ bag_correct <- mean(predict(bag,
                             newdata = data_clean_tree[-train_idx,]) == data_clean_tree[-train_idx, "health1"])
 bag_miss <- 1 - bag_correct 
 
-bag_miss # 0.2974623 - ~ 30%
+bag_miss # 0.3024232 - ~ 30%
 
 set.seed(123)
 rF <- randomForest(formula = health1 ~ ., 
@@ -570,13 +570,11 @@ rF_correct <- mean(predict(rF,
                            newdata = data_clean_tree[-train_idx,]) == data_clean_tree[-train_idx, "health1"])
 rF_miss <- 1 - rF_correct
 
-rF_miss # 0.2738027 - ~ 27%
+rF_miss # 0.2739935 - ~ 27%
 
-# The random forest has a lower misclassification rate than bagging (by about 2.5 pp)
+# The random forest has a lower misclassification rate than bagging (by about 2.8 pp)
 
 ### (c) #####
-
-#do not overwrite health1, maybe use a copy?
 data_clean_tree$health1 <- as.numeric(as.character(data_clean_tree$health1))
 
 set.seed(123)
@@ -591,11 +589,11 @@ boost_pred_test <- ifelse(predict(boost,
 
 boost_correct <- mean(boost_pred_test == data_clean_tree[-train_idx, "health1"])
 boost_miss <- 1 - boost_correct
-boost_miss #0.2699866
+boost_miss #0.2703683
 
 ### (d) #####
 
 summary(boost)
 
-# According to the relative influence measures from the boosted model, age and Bundesland are 
-# the most important predictors, followed by academic track, German citizenship, and gender.
+# According to the relative influence measures from the boosted model, Bundesland and sport's club membership are 
+# the most important predictors, followed by age, German citizenship, and academic track.
